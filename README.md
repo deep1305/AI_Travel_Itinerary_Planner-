@@ -10,12 +10,14 @@ An intelligent travel planning assistant powered by AI, LangChain, and conversat
 - **Context-Aware Planning**: Generates detailed day-trip itineraries tailored to user interests.
 - **Production-Ready**: Fully containerized with Docker and Kubernetes support.
 - **Structured Logging**: Comprehensive logging and custom exception handling for debugging.
+- **ELK Stack Integration**: Complete logging and monitoring solution with Elasticsearch, Logstash, Kibana, and Filebeat.
 
 ## 🛠️ Tech Stack
 
 - **LLM**: GROQ API (Llama 3.3) / Ollama (Qwen3-VL)
 - **Framework**: LangChain (LCEL)
 - **Frontend**: Streamlit
+- **Logging & Monitoring**: ELK Stack (Elasticsearch, Logstash, Kibana, Filebeat)
 - **Containerization**: Docker
 - **Orchestration**: Kubernetes (K8s)
 - **Language**: Python 3.11
@@ -37,6 +39,10 @@ AI Travel Agent/
 │       └── custom_exception.py # Exception handling
 ├── Dockerfile                  # Container configuration
 ├── k8s-deployment.yaml        # Kubernetes deployment manifest
+├── elasticsearch.yaml         # Elasticsearch deployment
+├── logstash.yaml              # Logstash deployment
+├── kibana.yaml                # Kibana deployment
+├── filebeat.yaml              # Filebeat DaemonSet
 ├── requirements.txt           # Python dependencies
 ├── setup.py                   # Package setup
 └── .env                       # Environment variables
@@ -187,6 +193,132 @@ kubectl get svc streamlit-service
 For local testing (Minikube):
 ```bash
 minikube service streamlit-service
+```
+
+## 📊 ELK Stack Deployment (Logging & Monitoring)
+
+The project includes a complete ELK (Elasticsearch, Logstash, Kibana) stack for centralized logging and monitoring.
+
+### Architecture
+
+```
+Streamlit App (Logs) 
+    ↓
+Filebeat (Collects logs from all pods)
+    ↓
+Logstash (Processes & transforms logs)
+    ↓
+Elasticsearch (Stores & indexes logs)
+    ↓
+Kibana (Visualizes & searches logs)
+```
+
+### Deploy ELK Stack
+
+**1. Create logging namespace:**
+```bash
+kubectl create namespace logging
+```
+
+**2. Deploy Elasticsearch (storage for logs):**
+```bash
+kubectl apply -f elasticsearch.yaml
+
+# Verify
+kubectl get pods -n logging
+kubectl get pvc -n logging
+```
+
+**3. Deploy Logstash (log processing):**
+```bash
+kubectl apply -f logstash.yaml
+
+# Verify
+kubectl get pods -n logging
+```
+
+**4. Deploy Kibana (visualization dashboard):**
+```bash
+kubectl apply -f kibana.yaml
+
+# Verify
+kubectl get svc -n logging
+```
+
+**5. Deploy Filebeat (log collection):**
+```bash
+kubectl apply -f filebeat.yaml
+
+# Verify - should run on each node
+kubectl get daemonset -n logging
+kubectl get pods -n logging -l k8s-app=filebeat
+```
+
+### Access Kibana Dashboard
+
+**For Minikube:**
+```bash
+minikube service kibana -n logging
+```
+
+**For GKE/Cloud:**
+```bash
+# Get NodePort
+kubectl get svc kibana -n logging
+
+# Access at: http://<NODE-IP>:30601
+```
+
+### View Logs in Kibana
+
+1. Open Kibana in browser
+2. Go to **Management → Stack Management → Index Patterns**
+3. Create index pattern: `filebeat-*`
+4. Set time field: `@timestamp`
+5. Go to **Discover** to view logs
+6. Filter by namespace, pod, container, etc.
+
+### ELK Stack Components
+
+| Component | Purpose | Port | Storage |
+|-----------|---------|------|---------|
+| **Elasticsearch** | Log storage & indexing | 9200 | 2Gi PVC |
+| **Logstash** | Log processing & transformation | 5044 (input), 9600 (monitoring) | - |
+| **Kibana** | Log visualization & search UI | 5601 (NodePort: 30601) | - |
+| **Filebeat** | Log collection from containers | - | Registry data on each node |
+
+### Troubleshooting ELK Stack
+
+**Check Elasticsearch health:**
+```bash
+kubectl exec -n logging <elasticsearch-pod> -- curl -X GET "localhost:9200/_cluster/health?pretty"
+```
+
+**Check logs are flowing:**
+```bash
+# Check Filebeat is collecting
+kubectl logs -n logging -l k8s-app=filebeat
+
+# Check Logstash is processing
+kubectl logs -n logging -l app=logstash
+
+# Check Elasticsearch indices
+kubectl exec -n logging <elasticsearch-pod> -- curl -X GET "localhost:9200/_cat/indices?v"
+```
+
+**View pod logs:**
+```bash
+kubectl logs -n logging <pod-name>
+```
+
+### Cleanup ELK Stack
+
+```bash
+kubectl delete -f filebeat.yaml
+kubectl delete -f kibana.yaml
+kubectl delete -f logstash.yaml
+kubectl delete -f elasticsearch.yaml
+kubectl delete namespace logging
 ```
 
 ## 📊 How It Works
