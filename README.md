@@ -227,6 +227,7 @@ kubectl apply -f elasticsearch.yaml
 # Verify
 kubectl get pods -n logging
 kubectl get pvc -n logging
+kubectl get pv
 ```
 
 **3. Deploy Logstash (log processing):**
@@ -288,6 +289,9 @@ kubectl get svc kibana -n logging
 | **Filebeat** | Log collection from containers | - | Registry data on each node |
 
 ### Troubleshooting ELK Stack
+
+**Elasticsearch CrashLoopBackOff on Minikube (Java cgroup NPE):**
+- If you see an error like `CgroupInfo.getMountPoint() ... anyController is null`, use the `7.17.28` images in this repo (older `7.17.0` can crash in some cgroup environments).
 
 **Check Elasticsearch health:**
 ```bash
